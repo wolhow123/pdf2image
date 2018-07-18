@@ -12,6 +12,8 @@ from io import BytesIO
 from subprocess import Popen, PIPE
 from PIL import Image
 
+Image.MAX_IMAGE_PIXELS = None
+
 def convert_from_path(pdf_path, dpi=200, output_folder=None, first_page=None, last_page=None, fmt='ppm', thread_count=1, userpw=None):
     """
         Description: Convert PDF to Image will throw whenever one of the condition is reached
@@ -25,7 +27,8 @@ def convert_from_path(pdf_path, dpi=200, output_folder=None, first_page=None, la
             thread_count -> How many threads we are allowed to spawn for processing
             userpw -> PDF's password
     """
-
+    
+    pdf_name, _ = os.path.splitext(os.path.basename(pdf_path))
     page_count = __page_count(pdf_path, userpw)
 
     if thread_count < 1:
@@ -67,7 +70,12 @@ def convert_from_path(pdf_path, dpi=200, output_folder=None, first_page=None, la
             images += __load_from_output_folder(output_folder, uid)
         else:
             images += parse_buffer_func(data)
-
+            
+    for idx, image in enumerate(images):
+        image_name = image.filename
+        new_name = os.path.join(os.path.dirname(image_name), pdf_name + '-{}.{}'.format(idx, fmt))
+        image.close()
+        os.rename(image_name, new_name)
     return images
 
 def convert_from_bytes(pdf_file, dpi=200, output_folder=None, first_page=None, last_page=None, fmt='ppm', thread_count=1, userpw=None):
