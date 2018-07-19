@@ -33,7 +33,10 @@ def convert_from_path(pdf_path, dpi=200, output_folder=None, first_page=None, la
 
     if thread_count < 1:
         thread_count = 1
-
+        
+    if page_count < thread_count:
+        thread_count = page_count
+        
     if first_page is None:
         first_page = 1
 
