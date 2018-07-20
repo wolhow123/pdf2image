@@ -23,7 +23,6 @@ def convert_from_path(pdf_path, dpi=200, output_folder=None, first_page=None, la
             output_folder -> Write the resulting images to a folder (instead of directly in memory)
             first_page -> First page to process
             last_page -> Last page to process before stopping
-            fmt -> Output image format
             thread_count -> How many threads we are allowed to spawn for processing
             userpw -> PDF's password
     """
@@ -38,10 +37,10 @@ def convert_from_path(pdf_path, dpi=200, output_folder=None, first_page=None, la
         thread_count = page_count
         
     if first_page is None:
-        first_page = 1
+        first_page = 0
 
     if last_page is None or last_page > page_count:
-        last_page = page_count
+        last_page = page_count - 1
 
     # Recalculate page count based on first and last page
     page_count = last_page - first_page + 1
@@ -58,7 +57,7 @@ def convert_from_path(pdf_path, dpi=200, output_folder=None, first_page=None, la
         # Get the number of pages the thread will be processing
         thread_page_count = page_count // thread_count + int(reminder > 0)
         # Build the command accordingly
-        args, parse_buffer_func = __build_command(['pdftopng', '-r', str(dpi), pdf_path], output_folder, current_page, current_page + thread_page_count - 1, uid, userpw)
+        args, parse_buffer_func = __build_command(['pdftopng', '-r', str(dpi)], pdf_path, output_folder, current_page, current_page + thread_page_count - 1, uid, userpw)
         # Update page values
         current_page = current_page + thread_page_count
         reminder -= int(reminder > 0)
@@ -102,20 +101,24 @@ def convert_from_bytes(pdf_file, dpi=200, output_folder=None, first_page=None, l
         f.flush()
         return convert_from_path(f.name, dpi=dpi, output_folder=output_folder, first_page=first_page, last_page=last_page, thread_count=thread_count, userpw=userpw)
 
-def __build_command(args, output_folder, first_page, last_page, uid, userpw):
+def __build_command(args, pdf_file, output_folder, first_page, last_page, uid, userpw):
     if first_page is not None:
         args.extend(['-f', str(first_page)])
 
     if last_page is not None:
         args.extend(['-l', str(last_page)])
-
+    
+    if userpw is not None:
+        args.extend(['-upw', userpw])
+    
     parsed_format, parse_buffer_func = 'png', __parse_buffer_to_png
-
+    
+    args.append(pdf_path)
+    
     if output_folder is not None:
         args.append(os.path.join(output_folder, uid))
 
-    if userpw is not None:
-        args.extend(['-upw', userpw])
+    
 
     return args, parse_buffer_func
 
