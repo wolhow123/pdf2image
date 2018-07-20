@@ -14,7 +14,7 @@ from PIL import Image
 
 Image.MAX_IMAGE_PIXELS = None
 
-def convert_from_path(pdf_path, dpi=200, output_folder=None, first_page=None, last_page=None, fmt='ppm', thread_count=1, userpw=None):
+def convert_from_path(pdf_path, dpi=200, output_folder=None, first_page=None, last_page=None, thread_count=1, userpw=None):
     """
         Description: Convert PDF to Image will throw whenever one of the condition is reached
         Parameters:
@@ -58,7 +58,7 @@ def convert_from_path(pdf_path, dpi=200, output_folder=None, first_page=None, la
         # Get the number of pages the thread will be processing
         thread_page_count = page_count // thread_count + int(reminder > 0)
         # Build the command accordingly
-        args, parse_buffer_func = __build_command(['pdftoppm', '-r', str(dpi), pdf_path], output_folder, current_page, current_page + thread_page_count - 1, fmt, uid, userpw)
+        args, parse_buffer_func = __build_command(['pdftopng', '-r', str(dpi), pdf_path], output_folder, current_page, current_page + thread_page_count - 1, uid, userpw)
         # Update page values
         current_page = current_page + thread_page_count
         reminder -= int(reminder > 0)
@@ -76,12 +76,14 @@ def convert_from_path(pdf_path, dpi=200, output_folder=None, first_page=None, la
             
     for idx, image in enumerate(images):
         image_name = image.filename
-        new_name = os.path.join(os.path.dirname(image_name), pdf_name + '-{}.{}'.format(idx, fmt))
+        new_name = os.path.join(os.path.dirname(image_name), pdf_name + '-{}.png'.format(first_page + idx))
         image.close()
+        if os.path.exists(new_name):
+            os.path.remove(new_name)
         os.rename(image_name, new_name)
     return images
 
-def convert_from_bytes(pdf_file, dpi=200, output_folder=None, first_page=None, last_page=None, fmt='ppm', thread_count=1, userpw=None):
+def convert_from_bytes(pdf_file, dpi=200, output_folder=None, first_page=None, last_page=None, thread_count=1, userpw=None):
     """
         Description: Convert PDF to Image will throw whenever one of the condition is reached
         Parameters:
@@ -98,19 +100,16 @@ def convert_from_bytes(pdf_file, dpi=200, output_folder=None, first_page=None, l
     with tempfile.NamedTemporaryFile('wb') as f:
         f.write(pdf_file)
         f.flush()
-        return convert_from_path(f.name, dpi=dpi, output_folder=output_folder, first_page=first_page, last_page=last_page, fmt=fmt, thread_count=thread_count, userpw=userpw)
+        return convert_from_path(f.name, dpi=dpi, output_folder=output_folder, first_page=first_page, last_page=last_page, thread_count=thread_count, userpw=userpw)
 
-def __build_command(args, output_folder, first_page, last_page, fmt, uid, userpw):
+def __build_command(args, output_folder, first_page, last_page, uid, userpw):
     if first_page is not None:
         args.extend(['-f', str(first_page)])
 
     if last_page is not None:
         args.extend(['-l', str(last_page)])
 
-    parsed_format, parse_buffer_func = __parse_format(fmt)
-
-    if parsed_format != 'ppm':
-        args.append('-' + parsed_format)
+    parsed_format, parse_buffer_func = 'png', __parse_buffer_to_png
 
     if output_folder is not None:
         args.append(os.path.join(output_folder, uid))
@@ -119,36 +118,6 @@ def __build_command(args, output_folder, first_page, last_page, fmt, uid, userpw
         args.extend(['-upw', userpw])
 
     return args, parse_buffer_func
-
-def __parse_format(fmt):
-    if fmt[0] == '.':
-        fmt = fmt[1:]
-    if fmt == 'jpeg' or fmt == 'jpg':
-        return 'jpeg', __parse_buffer_to_jpeg
-    if fmt == 'png':
-        return 'png', __parse_buffer_to_png
-    # Unable to parse the format so we'll use the default
-    return 'ppm', __parse_buffer_to_ppm
-
-def __parse_buffer_to_ppm(data):
-    images = []
-
-    index = 0
-
-    while index < len(data):
-        code, size, rgb = tuple(data[index:index + 40].split(b'\n')[0:3])
-        size_x, size_y = tuple(size.split(b' '))
-        file_size = len(code) + len(size) + len(rgb) + 3 + int(size_x) * int(size_y) * 3
-        images.append(Image.open(BytesIO(data[index:index + file_size])))
-        index += file_size
-
-    return images
-
-def __parse_buffer_to_jpeg(data):
-    return [
-        Image.open(BytesIO(image_data + b'\xff\xd9'))
-        for image_data in data.split(b'\xff\xd9')[:-1] # Last element is obviously empty
-    ]
 
 def __parse_buffer_to_png(data):
     images = []
